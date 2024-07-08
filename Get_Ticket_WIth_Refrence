@@ -1,0 +1,32 @@
+//Retrieve any ticket from Gorgias with a externalid that matches the RingCentral SessionID
+import { axios } from "@pipedream/platform"
+
+export default defineComponent({
+  props: {
+    gorgias_oauth: {
+      type: "app",
+      app: "gorgias_oauth",
+    }
+  },
+  async run({steps, $}) {
+    const response = await axios($, {
+      method: 'GET',
+      url: `https://${this.gorgias_oauth.$auth.domain}.gorgias.com/api/tickets?external_id=${steps.trigger.event.body.telephonySessionId}&limit=1`,
+      headers: {
+        Authorization: `Bearer ${this.gorgias_oauth.$auth.oauth_access_token}`,
+        "Accept": "application/json",
+      },
+    });
+
+    console.log(`${steps.trigger.event.body.telephonySessionId}`);
+    
+    if (response.data && response.data.length > 0) {
+      console.log(response.data[0].id);
+      return { ticketId: response.data[0].id };
+    } else {
+      //console.log(response.data[0]);
+      //console.log(response.data[0].id);
+      return { ticketId: null };
+    }
+  },
+})
