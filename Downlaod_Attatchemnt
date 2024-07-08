@@ -1,0 +1,33 @@
+import { axios } from "@pipedream/platform"
+import fs from "fs"
+import path from "path"
+
+export default defineComponent({
+  props: {
+    ringcentral: {
+      type: "app",
+      app: "ringcentral",
+    },
+    recordingId: {
+      type: "string",
+      label: "Recording ID",
+      description: "The ID of the call recording to download",
+    },
+  },
+  async run({steps, $}) {
+    const recordingUrl = `${this.ringcentral.$auth.instancetype}.ringcentral.com/restapi/v1.0/account/~/recording/${this.recordingId}/content`;
+    const response = await axios($, {
+      url: recordingUrl,
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${this.ringcentral.$auth.oauth_access_token}`,
+      },
+      responseType: "arraybuffer",
+    });
+
+    const tempFilePath = path.join("/tmp", `${this.recordingId}.mp3`);
+    fs.writeFileSync(tempFilePath, response);
+
+    return { filePath: tempFilePath, recordingUrl: recordingUrl };
+  },
+})
