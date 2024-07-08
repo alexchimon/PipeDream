@@ -1,0 +1,96 @@
+import { axios } from "@pipedream/platform";
+import FormData from "form-data";
+import fs from "fs";
+
+
+export default defineComponent({
+  props: {
+    gorgias_oauth: {
+      type: "app",
+      app: "gorgias_oauth",
+    },
+    ringCentralSessionId: {
+      type: "string",
+      label: "RingCentral Session ID",
+      description: "The Session ID of the RingCentral call to attach",
+    },
+    ringCentralRecordingUrl: {
+      type: "string",
+      label: "RingCentral Recording URL",
+      description: "The URL of the RingCentral call recording to attach",
+    },
+  },
+  async run({ steps, $ }) {
+    // Fetch the ticket by external ID (RingCentral Session ID)
+    const ticketsResponse = await axios($, {
+      url: `https://${this.gorgias_oauth.$auth.domain}.gorgias.com/api/tickets?external_id=${this.ringCentralSessionId}&limit=1`,
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${this.gorgias_oauth.$auth.oauth_access_token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log(`${this.ringCentralSessionId}`);
+    
+    if (!ticketsResponse.data || ticketsResponse.data.length === 0) {
+      console.log("No matching Gorgias ticket found for the provided RingCentral Session ID.");
+      return null;
+    }
+
+    console.log('Found the ticket with session ID');
+
+    const ticketId = ticketsResponse.data[0].id;
+    
+    const mp3FilePath = `${steps.ringcentral.$return_value.filePath}`;
+    const fileStream = fs.createReadStream(mp3FilePath);
+
+/*    // Download the RingCentral recording
+    const recordingResponse = await axios($, {
+      url: this.ringCentralRecordingUrl,
+      method: "GET",
+      responseType: "arraybuffer",
+    });
+
+    // Save the recording to a temporary file
+    const fs = require("fs");
+    const path = require("path");
+    const tempFilePath = path.join("/tmp", `recording-${this.ringCentralSessionId}.mp3`);
+    fs.writeFileSync(tempFilePath, recordingResponse.data);
+*/
+    // Attach the recording to the Gorgias ticket
+    const formData = new FormData();
+    formData.append("attachment", fileStream, {
+      filename: "audio.mp3",
+      contentType: "audio/mpeg",
+    });
+
+    //formData.append("file", fs.createReadStream(`${steps.download_recording.$return_value}`), {
+/*
+      formData.append("file", `${steps.ringcentral.$return_value.filePath}`), {
+      filename: `recording-${this.ringCentralSessionId}.mp3`,
+    };
+*/
+    console.log("got there");
+    const formHeaders = formData.getHeaders();
+
+    const attachmentResponse = await axios($, {
+      url: `https://${this.gorgias_oauth.$auth.domain}.gorgias.com/api/tickets/${ticketId}/messages/attachments`,
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.gorgias_oauth.$auth.oauth_access_token}`,
+        ...formHeaders,
+      },
+      data: formData,
+    });
+
+    console.log("got here");
+    
+    return {
+      success: true,
+      message: "Recording attached to Gorgias ticket successfully.",
+      ticketId: ticketId,
+      attachmentResponse: attachmentResponse.data,
+    };
+  },
+});
