@@ -1,0 +1,63 @@
+import { axios } from "@pipedream/platform"
+export default defineComponent({
+  props: {
+    ringcentral: {
+      type: "app",
+      app: "ringcentral",
+    },
+    gorgias_oauth: {
+      type: "app",
+      app: "gorgias_oauth",
+    },
+    callSessionId: {
+      type: "string",
+      label: "Call Session ID",
+      description: "The ID of the call session in RingCentral to retrieve the recording for.",
+    },
+    externalId: {
+      type: "string",
+      label: "Gorgias Ticket External ID",
+      description: "The external ID of the Gorgias ticket to attach the recording to.",
+    },
+  },
+  async run({ steps, $ }) {
+    // Retrieve the recording from RingCentral
+    const recordingResponse = await axios($, {
+      url: `${this.ringcentral.$auth.instancetype}.ringcentral.com/restapi/v1.0/account/~/recording/${this.callSessionId}/content`,
+      headers: {
+        Authorization: `Bearer ${this.ringcentral.$auth.oauth_access_token}`,
+      },
+      responseType: 'arraybuffer',
+    });
+
+    // Encode the recording file in base64
+    const recordingBase64 = Buffer.from(recordingResponse.data, 'binary').toString('base64');
+
+    // Attach the recording to a Gorgias ticket
+    const gorgiasResponse = await axios($, {
+      method: "POST",
+      url: `https://api.gorgias.com/tickets/${this.externalId}/messages`,
+      headers: {
+        Authorization: `Bearer ${this.gorgias_oauth.$auth.oauth_access_token}`,
+      },
+      data: {
+        channel: 'phone',
+//        sender: {
+//          name: "RingCentral Recording",
+//          email: "noreply@ringcentral.com"
+//        },
+        subject: "Call Recording",
+        body_text: "Attached is the call recording.",
+        attachments: [
+          {
+            filename: `recording-${this.callSessionId}.mp3`,
+            content: recordingBase64,
+            content_type: "audio/mpeg",
+          },
+        ],
+      },
+    });
+
+    return gorgiasResponse.data;
+  },
+})
