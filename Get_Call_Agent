@@ -1,0 +1,54 @@
+import { axios } from "@pipedream/platform"
+export default defineComponent({
+  props: {
+    gorgias_oauth: {
+      type: "app",
+      app: "gorgias_oauth",
+    },
+    ringcentral_extensionID: {
+      type: "string",
+      label: "RingCentral Extension ID",
+    },
+    ringcentral_userName: {
+      type: "string",
+      label: "RingCentral User Name",
+    },
+  },
+  async run({ steps, $ }) {
+    // Search for the Gorgias user based on the name retrieved from the RingCentral trigger
+    const searchUserResponse = await axios($, {
+      url: `https://${this.gorgias_oauth.$auth.domain}.gorgias.com/api/users?limit=30&order_by=name%3Aasc`,
+      params: {
+        //query: this.ringcentral_userName,
+      },
+      headers: {
+        Authorization: `Bearer ${this.gorgias_oauth.$auth.oauth_access_token}`,
+        "Accept": "application/json",
+      },
+    });
+    
+    if (searchUserResponse.data && searchUserResponse.data.length > 0) {
+      const gorgiasUserID = searchUserResponse.data[0].id;
+
+      // Update the Gorgias user so that the externalID is set to the extensionID from RingCentral
+      const updateUserResponse = await axios($, {
+        method: "PUT",
+        url: `https://${this.gorgias_oauth.$auth.domain}.gorgias.com/api/users/${gorgiasUserID}`,
+        headers: {
+          Authorization: `Bearer ${this.gorgias_oauth.$auth.oauth_access_token}`,
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        data: {
+          external_id: this.ringcentral_extensionID,
+        },
+      });
+      
+      console.log(updateUserResponse.data);
+      
+      return updateUserResponse.data;
+    } else {
+      throw new Error("Gorgias user not found");
+    }
+  },
+})
