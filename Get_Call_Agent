@@ -1,3 +1,11 @@
+Gorgias Account:
+achimon@shopakira.com
+RingCentral Extension ID:
+{{steps.trigger.event.body.parties[0].to.name}}{{steps.trigger.event.body.parties[0].to.extensionId}}
+RingCentral User Name:
+{{steps.trigger.event.body.parties[0].to.name}}
+
+
 import { axios } from "@pipedream/platform"
 export default defineComponent({
   props: {
