@@ -1,0 +1,104 @@
+Gorgias Account:
+achimon@shopakira.com
+From Address:
+{{steps.trigger.event.body.parties[0].from.phoneNumber}}
+To Address:
+{{steps.trigger.event.body.parties[0].to.phoneNumber}}
+Subject:
+Call from {{steps.trigger.event.body.parties[0].from.name}}
+Message:
+Call from {{steps.trigger.event.body.parties[0].from.name}} with phone number {{steps.trigger.event.body.parties[0].from.phoneNumber}} - Calling {{steps.trigger.event.body.parties[0].to.name}}
+External ID:
+{{steps.trigger.event.body.telephonySessionId}}
+Channel:
+phone
+Via:
+helpdesk
+
+
+import { axios } from "@pipedream/platform";
+
+export default defineComponent({
+  key: "gorgias_oauth-create-ticket",
+  name: "Create Ticket",
+  description: "Create a new ticket. [See the docs](https://developers.gorgias.com/reference/post_api-tickets)",
+  version: "0.0.4",
+  type: "action",
+  props: {
+    gorgias_oauth: {
+      type: "app",
+      app: "gorgias_oauth",
+    },
+    fromAddress: {
+      type: "string",
+      label: "From Address",
+    },
+    toAddress: {
+      type: "string",
+      label: "To Address",
+    },
+    subject: {
+      type: "string",
+      label: "Subject",
+      description: "The subject of the message",
+    },
+    message: {
+      type: "string",
+      label: "Message",
+      description: "Message of the ticket. Accepts HTML",
+    },
+    externalId: {
+      type: "string",
+      label: "External ID",
+      description: "External System Reference for the customer",
+    },
+    channel: {
+      type: "string",
+      label: "Channel",
+      description: "Channel of the ticket",
+    },
+    via: {
+      type: "string",
+      label: "Via",
+      description: "How the ticket was received",
+    },
+  },
+  async run({ steps, $ }) {
+    const phoneNumberRegex = /^(?:\+1)?[0-9]{11}$/;
+    if (!phoneNumberRegex.test(this.fromAddress.replace(/\D/g, '')) || !phoneNumberRegex.test(this.toAddress.replace(/\D/g, ''))) {
+      console.log("Both fromAddress and toAddress must be valid phone numbers in the format of 13125551234, +13125551234 or 3125551234");
+      return null;
+    }
+    return await axios($, {
+      method: "POST",
+      url: `https://${this.gorgias_oauth.$auth.domain}.gorgias.com/api/tickets`,
+      headers: {
+        Authorization: `Bearer ${this.gorgias_oauth.$auth.oauth_access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: {
+        external_id: this.externalId,
+        messages: [
+          {
+            from_agent: false,
+            subject: this.subject,
+            body_html: this.message,
+            channel: this.channel,
+            external_id: this.externalId,
+            via: this.via,
+            source: {
+              from: {
+                address: this.fromAddress,
+              },
+              to: [
+                {
+                  address: this.toAddress,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+  },
+});
